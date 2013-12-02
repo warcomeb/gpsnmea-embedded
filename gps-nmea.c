@@ -41,15 +41,24 @@
 #define GPSNMEA_END1                       '\r'
 #define GPSNMEA_END2                       '\n'
 
+#define GPSNMEA_STRING_GGA                 "$GPGGA"
+#define GPSNMEA_STRING_GLL                 "$GPGLL"
+#define GPSNMEA_STRING_RMC                 "$GPRMC"
+#define GPSNMEA_STRING_GSV                 "$GPGSV"
+#define GPSNMEA_STRING_GSA                 "$GPGSA"
+#define GPSNMEA_STRING_VTG                 "$GPVTG"
+#define GPSNMEA_STRING_ZDA                 "$GPZDA"
+#define GPSNMEA_STRING_PMTK001             "$PMTK001"
+
 #define GPSNMEA_MSG_MAX_LENGTH             80
+//
+//#define GPSNMEA_RX_BUFFER_MASK             0x7F
+//#define GPSNMEA_TX_BUFFER_MASK             0x7F
+//
+//static uint8_t GpsNmea_rxBufferIndex;
+//static uint8_t GpsNmea_txBufferIndex;
 
-#define GPSNMEA_RX_BUFFER_MASK             0x7F
-#define GPSNMEA_TX_BUFFER_MASK             0x7F
-
-static uint8_t GpsNmea_rxBufferIndex;
-static uint8_t GpsNmea_txBufferIndex;
-
-static uint8_t GpsNmea_rxBuffer[GPSNMEA_RX_BUFFER_MASK + 1];
+//static uint8_t GpsNmea_rxBuffer[GPSNMEA_RX_BUFFER_MASK + 1];
 
 static Uart_DeviceHandle GpsNmea_device;
 static uint8_t GpsNmea_active = GPSNMEA_NO_ACTIVE;
@@ -58,12 +67,81 @@ static uint8_t GpsNmea_active = GPSNMEA_NO_ACTIVE;
 #define GPSENMEA_POS_END1(n)               (n-2)
 #define GPSENMEA_POS_END2(n)               (n-1)
 
-void GpsNmea_init (Uart_DeviceHandle device)
+static union GpsNmea_ReadStatusType
 {
-	/* TODO: Init periferica! */
+    uint8_t status;
+    
+    struct {
+        uint8_t reading             :1;
+        uint8_t computeChecksum     :1;
+        uint8_t receivingChecksum   :1;
+        uint8_t nParameter          :4;
+        uint8_t notUsed             :1;
+    } flags;
+} GpsNmea_readStatus;
+
+static uint8_t GpsNmea_readWordIndex;
+static uint8_t GpsNmea_readCharIndex;
+static uint8_t GpsNmea_readChecksum;
+
+static union GpsNmea_RxBufferType
+{
+    char message[20][15];
+    
+    struct
+    {
+        char command[15];
+        char utcTime[15];
+        char status[15];
+        char latitudeCoordinate[15];
+        char latitudeDirection[15];
+        char longitudeCoordinate[15];
+        char longitudeDirection[15];
+        char speed[15];
+        char heading[15];
+        char utcDate[15];
+        char magneticVariation[15];
+        char magneticDirection[15];
+        char mode[15];
+    } rmc;
+
+    struct
+    {
+        char command[15];
+        char utcTime[15];
+        char utcDay[15];
+        char utcMonth[15];
+        char utcYear[15];
+        char localHour[15];
+        char localMinute[15];
+    } zda;
+
+    struct
+    {
+        char command[15];
+        char responseCommand[15];
+        char responseFlag[15];
+    } ptmk001;
+} GpsNmea_rxBuffer;
+
+static char GpsNmea_rxChecksumBuffer[4];
+static uint8_t GpsNmea_readChecksumIndex;
+
+GpsNmea_Errors GpsNmea_init (Uart_DeviceHandle device)
+{
+    if (GpsNmea_active == GPSNMEA_NO_ACTIVE)
+    {
+        GpsNmea_device = device;
+        Uart_setBaudRate(GpsNmea_device,GPSNMEA_BAUDRATE);
+        Uart_init(GpsNmea_device);
+        return GPSNMEA_ERROR_OK;
+    }
+    else
+    {
+        return GPSNMEA_ERROR_JUST_ACTIVE;        
+    }
 	
-	GpsNmea_rxBufferIndex = 0;
-	GpsNmea_txBufferIndex = 0;
+    GpsNmea_readStatus.status = 0;
 }
 
 /**
@@ -120,21 +198,21 @@ static uint8_t GpsNmea_computeChecksum (const uint8_t* data, uint8_t start, uint
 
 static GpsNmea_MessageType GpsNmea_getReceiveMessageType (void)
 {
-    if (stringCompare((char*)&GpsNmea_rxBuffer[3],"RMC") == 0)
+    if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_RMC) == 0)
         return GPSNMEA_MSG_RMC;
-    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GGA") == 0)
+    else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GGA) == 0)
         return GPSNMEA_MSG_GGA;
-    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GLL") == 0)
+    else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GLL) == 0)
         return GPSNMEA_MSG_GLL;        
-    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GSV") == 0)
+    else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GSV) == 0)
         return GPSNMEA_MSG_GSV;
-    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GSA") == 0)
+    else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GSA) == 0)
         return GPSNMEA_MSG_GSA;
-    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"VTG") == 0)
+    else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_VTG) == 0)
         return GPSNMEA_MSG_VTG;
-    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"ZDA") == 0)
+    else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_ZDA) == 0)
         return GPSNMEA_MSG_ZDA;
-    else if (stringCompare((char*)&GpsNmea_rxBuffer[1],"PMTK001") == 0)
+    else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_PMTK001) == 0)
         return GPSNEMA_MSG_PMTK001;
     else
         return GPSNMEA_MSG_EMPTY;
@@ -147,9 +225,79 @@ static GpsNmea_MessageType GpsNmea_getReceiveMessageType (void)
 GpsNmea_Errors GpsNmea_addReceiveChar (void)
 {
     char c;
-    
     Uart_getChar(GpsNmea_device,&c);
+
+    if (c == GPSNMEA_START)
+    {
+        GpsNmea_readStatus.status = 0;
+
+        GpsNmea_readStatus.flags.reading = 1;
+        GpsNmea_readStatus.flags.computeChecksum = 1;
+        GpsNmea_readStatus.flags.receivingChecksum = 0;
+
+        GpsNmea_readWordIndex = 0;
+        GpsNmea_readCharIndex = 0;
+        GpsNmea_readChecksum = 0;
+        
+        GpsNmea_readChecksumIndex = 0;
+    }
     
+    if (GpsNmea_readStatus.flags.reading == 1)
+    {
+        if ((c == GPSNMEA_END1) || (c == GPSNMEA_END2))
+        {
+            /* Delete last char to detect end of string. */
+            GpsNmea_rxBuffer.message[GpsNmea_readWordIndex][GpsNmea_readCharIndex] = 0;
+            GpsNmea_readWordIndex++;
+            GpsNmea_readStatus.flags.reading = 0;
+            
+            GpsNmea_rxChecksumBuffer[GpsNmea_readChecksumIndex] = 0;
+            
+            GpsNmea_readStatus.status = 0;
+            /* Save number of parameter! */
+            GpsNmea_readStatus.flags.nParameter = GpsNmea_readWordIndex;
+            
+            /* Notify to main application that we received a new message */
+            GpsNmea_status.flags.commandReady = 1;
+        }
+        else if (c != GPSNMEA_START)
+        {
+            if (GpsNmea_readStatus.flags.receivingChecksum == 1)
+            {
+                GpsNmea_rxChecksumBuffer[GpsNmea_readChecksumIndex] = c;
+                GpsNmea_readChecksumIndex++;
+            }
+
+            if ((GpsNmea_readStatus.flags.computeChecksum == 1) && (c == GPSNMEA_STOP))
+            {
+                GpsNmea_readStatus.flags.computeChecksum = 0;
+                GpsNmea_readStatus.flags.receivingChecksum = 1;
+            }
+            
+            if (GpsNmea_readStatus.flags.computeChecksum == 1)
+                GpsNmea_readChecksum ^= c;
+            
+            GpsNmea_rxBuffer.message[GpsNmea_readWordIndex][GpsNmea_readCharIndex] = c;
+            if (c == GPSNMEA_SEPARATOR)
+            {
+                GpsNmea_rxBuffer.message[GpsNmea_readWordIndex][GpsNmea_readCharIndex] = 0;
+                GpsNmea_readWordIndex++;
+                GpsNmea_readCharIndex = 0;
+            }
+            else
+            {
+                GpsNmea_readCharIndex++;
+            }
+        }
+    }
+    else
+    {
+        GpsNmea_status.flags.commandReady = 0;
+        return GPSNMEA_ERROR_WRONG_CHAR;
+    }
+    
+    
+#if 0
     if (IS_DIGIT(c) || IS_UPPERLETTER(c) || IS_UPPERLETTER(c) ||
         (c == GPSNMEA_START) || (c == GPSNMEA_SEPARATOR) ||
         (c == GPSNMEA_DECIMAL) || (c == GPSNMEA_STOP) || (c == GPSNMEA_END1))
@@ -174,6 +322,7 @@ GpsNmea_Errors GpsNmea_addReceiveChar (void)
         GpsNmea_rxBufferIndex = 0;
         return GPSNMEA_ERROR_MSG_TOO_LONG;
     }
+#endif
     
     return GPSNMEA_ERROR_OK;
 }
@@ -185,16 +334,26 @@ GpsNmea_Errors GpsNmea_addReceiveChar (void)
 GpsNmea_Errors GpsNmea_parseMessage (void)
 {
     static uint8_t rxChecksum = 0;
-    static uint8_t computeChecksum = 0;
     
-    static uint8_t messageLength = 0;
+//    static uint8_t messageLength = 0;
 
     static GpsNmea_MessageType messageType = GPSNMEA_MSG_EMPTY;
     
     /* Reset buffer index indicator */
-    messageLength = GpsNmea_rxBufferIndex;
-    GpsNmea_rxBufferIndex = 0;
+//    messageLength = GpsNmea_rxBufferIndex;
+//    GpsNmea_rxBufferIndex = 0;
+
+    xtu8(GpsNmea_rxChecksumBuffer,&rxChecksum,2);
+    if (GpsNmea_readChecksum != rxChecksum)
+        return GPSNMEA_ERROR_CHECKSUM; /* Checksum mismatch */
+
+    messageType = GpsNmea_getReceiveMessageType();
+    if (messageType == GPSNMEA_MSG_EMPTY)
+        return GPSNMEA_ERROR_MSG_TYPE;
+
+    return GPSNMEA_ERROR_OK;
     
+#if 0
     /* Control start and end chars of message */
     if ((GpsNmea_rxBuffer[0] == GPSNMEA_START) && 
         (GpsNmea_rxBuffer[GPSENMEA_POS_STOP(messageLength)] == GPSNMEA_STOP) &&
@@ -217,4 +376,5 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
     {
         return GPSNMEA_ERROR_NOT_COMPLIANT;
     }
+#endif
 }

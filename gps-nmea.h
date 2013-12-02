@@ -74,14 +74,16 @@ union GpsNmea_StatusType
     
     struct {
         uint8_t commandReady        :1;
-        uint8_t notUsed             :7;
+        uint8_t parsingMessage      :1;
+        uint8_t notUsed             :6;
     } flags;
 } extern GpsNmea_status;
 
-void GpsNmea_init (Uart_DeviceHandle device);
+GpsNmea_Errors GpsNmea_init (Uart_DeviceHandle device);
 GpsNmea_Errors GpsNmea_enable (void);
 GpsNmea_Errors GpsNmea_disable (void);
 
 GpsNmea_Errors GpsNmea_addReceiveChar (void);
+GpsNmea_Errors GpsNmea_parseMessage (void);
 
 #endif /* __GPS_NMEA_H */
