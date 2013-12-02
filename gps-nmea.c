@@ -111,7 +111,7 @@ static uint8_t GpsNmea_computeChecksum (const uint8_t* data, uint8_t start, uint
 
      for (i = start; i < length; ++i)
      {
-         checksum = checksum ^ data;
+         checksum = checksum ^ (*data);
          data++;
      }
 
@@ -120,7 +120,24 @@ static uint8_t GpsNmea_computeChecksum (const uint8_t* data, uint8_t start, uint
 
 static GpsNmea_MessageType GpsNmea_getReceiveMessageType (void)
 {
-    
+    if (stringCompare((char*)&GpsNmea_rxBuffer[3],"RMC") == 0)
+        return GPSNMEA_MSG_RMC;
+    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GGA") == 0)
+        return GPSNMEA_MSG_GGA;
+    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GLL") == 0)
+        return GPSNMEA_MSG_GLL;        
+    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GSV") == 0)
+        return GPSNMEA_MSG_GSV;
+    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"GSA") == 0)
+        return GPSNMEA_MSG_GSA;
+    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"VTG") == 0)
+        return GPSNMEA_MSG_VTG;
+    else if (stringCompare((char*)&GpsNmea_rxBuffer[3],"ZDA") == 0)
+        return GPSNMEA_MSG_ZDA;
+    else if (stringCompare((char*)&GpsNmea_rxBuffer[1],"PMTK001") == 0)
+        return GPSNEMA_MSG_PMTK001;
+    else
+        return GPSNMEA_MSG_EMPTY;
 }
 
 /**
@@ -172,21 +189,27 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
     
     static uint8_t messageLength = 0;
 
+    static GpsNmea_MessageType messageType = GPSNMEA_MSG_EMPTY;
+    
     /* Reset buffer index indicator */
     messageLength = GpsNmea_rxBufferIndex;
     GpsNmea_rxBufferIndex = 0;
     
     /* Control start and end chars of message */
-    if ((GpsNmea_rxMessage[0] == GPSNMEA_START) && 
-        (GpsNmea_rxMessage[GPSENMEA_POS_STOP(messageLength)] == GPSNMEA_STOP) &&
-        (GpsNmea_rxMessage[GPSENMEA_POS_END1(messageLength)] == GPSNMEA_END1) &&
-        (GpsNmea_rxMessage[GPSENMEA_POS_END2(messageLength)] == GPSNMEA_END2))
+    if ((GpsNmea_rxBuffer[0] == GPSNMEA_START) && 
+        (GpsNmea_rxBuffer[GPSENMEA_POS_STOP(messageLength)] == GPSNMEA_STOP) &&
+        (GpsNmea_rxBuffer[GPSENMEA_POS_END1(messageLength)] == GPSNMEA_END1) &&
+        (GpsNmea_rxBuffer[GPSENMEA_POS_END2(messageLength)] == GPSNMEA_END2))
     {
         /* Control checksum */
-        xtu8(&GpsNmea_rxMessage[messageLength-4],&rxChecksum,2);
-        computeChecksum = GpsNmea_computeChecksum(&GpsNmea_rxMessage[1],1,GPSENMEA_POS_STOP(messageLength));
+        xtu8(&GpsNmea_rxBuffer[messageLength-4],&rxChecksum,2);
+        computeChecksum = GpsNmea_computeChecksum(&GpsNmea_rxBuffer[1],1,GPSENMEA_POS_STOP(messageLength));
         if (computeChecksum != rxChecksum)
             return GPSNMEA_ERROR_CHECKSUM; /* Checksum mismatch */
+
+        messageType = GpsNmea_getReceiveMessageType();
+        if (messageType == GPSNMEA_MSG_EMPTY)
+            return GPSNMEA_ERROR_MSG_TYPE;
 
         return GPSNMEA_ERROR_OK;
     }

@@ -45,17 +45,20 @@ typedef enum _GpsNmea_Errors
 	
 	GPSNMEA_ERROR_NOT_COMPLIANT,
 	GPSNMEA_ERROR_CHECKSUM,
+	GPSNMEA_ERROR_MSG_TYPE,
 } GpsNmea_Errors;
 
 typedef enum _GpsNmea_MessageType
 {
+    GPSNMEA_MSG_EMPTY,
     GPSNMEA_MSG_GGA,
     GPSNMEA_MSG_GLL,
     GPSNMEA_MSG_RMC,
     GPSNMEA_MSG_GSV,
     GPSNMEA_MSG_GSA,
     GPSNMEA_MSG_VTG,
-    GPSNMEA_MSG_ZDA
+    GPSNMEA_MSG_ZDA,
+    GPSNEMA_MSG_PMTK001
 } GpsNmea_MessageType;
 
 typedef enum _GpsNmea_DeviceType
