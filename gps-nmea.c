@@ -41,14 +41,14 @@
 #define GPSNMEA_END1                       '\r'
 #define GPSNMEA_END2                       '\n'
 
-#define GPSNMEA_STRING_GGA                 "$GPGGA"
-#define GPSNMEA_STRING_GLL                 "$GPGLL"
-#define GPSNMEA_STRING_RMC                 "$GPRMC"
-#define GPSNMEA_STRING_GSV                 "$GPGSV"
-#define GPSNMEA_STRING_GSA                 "$GPGSA"
-#define GPSNMEA_STRING_VTG                 "$GPVTG"
-#define GPSNMEA_STRING_ZDA                 "$GPZDA"
-#define GPSNMEA_STRING_PMTK001             "$PMTK001"
+#define GPSNMEA_STRING_GGA                 "GPGGA"
+#define GPSNMEA_STRING_GLL                 "GPGLL"
+#define GPSNMEA_STRING_RMC                 "GPRMC"
+#define GPSNMEA_STRING_GSV                 "GPGSV"
+#define GPSNMEA_STRING_GSA                 "GPGSA"
+#define GPSNMEA_STRING_VTG                 "GPVTG"
+#define GPSNMEA_STRING_ZDA                 "GPZDA"
+#define GPSNMEA_STRING_PMTK001             "PMTK001"
 
 #define GPSNMEA_MSG_MAX_LENGTH             80
 //
@@ -126,6 +126,8 @@ static union GpsNmea_RxBufferType
 
 static char GpsNmea_rxChecksumBuffer[4];
 static uint8_t GpsNmea_readChecksumIndex;
+
+union GpsNmea_StatusType GpsNmea_status;
 
 GpsNmea_Errors GpsNmea_init (Uart_DeviceHandle device)
 {
@@ -252,6 +254,7 @@ GpsNmea_Errors GpsNmea_addReceiveChar (void)
             GpsNmea_readStatus.flags.reading = 0;
             
             GpsNmea_rxChecksumBuffer[GpsNmea_readChecksumIndex] = 0;
+            GpsNmea_readChecksumIndex = 0;
             
             GpsNmea_readStatus.status = 0;
             /* Save number of parameter! */
@@ -278,7 +281,7 @@ GpsNmea_Errors GpsNmea_addReceiveChar (void)
                 GpsNmea_readChecksum ^= c;
             
             GpsNmea_rxBuffer.message[GpsNmea_readWordIndex][GpsNmea_readCharIndex] = c;
-            if (c == GPSNMEA_SEPARATOR)
+            if ((c == GPSNMEA_SEPARATOR) || (c == GPSNMEA_STOP))
             {
                 GpsNmea_rxBuffer.message[GpsNmea_readWordIndex][GpsNmea_readCharIndex] = 0;
                 GpsNmea_readWordIndex++;
