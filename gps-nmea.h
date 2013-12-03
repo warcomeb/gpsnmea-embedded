@@ -48,18 +48,18 @@ typedef enum _GpsNmea_Errors
 	GPSNMEA_ERROR_MSG_TYPE,
 } GpsNmea_Errors;
 
-typedef enum _GpsNmea_MessageType
+typedef enum _GpsNmea_RxMessageType
 {
-    GPSNMEA_MSG_EMPTY,
-    GPSNMEA_MSG_GGA,
-    GPSNMEA_MSG_GLL,
-    GPSNMEA_MSG_RMC,
-    GPSNMEA_MSG_GSV,
-    GPSNMEA_MSG_GSA,
-    GPSNMEA_MSG_VTG,
-    GPSNMEA_MSG_ZDA,
-    GPSNEMA_MSG_PMTK001
-} GpsNmea_MessageType;
+    GPSNMEA_RXMSG_ERROR,
+    GPSNMEA_RXMSG_GGA,
+    GPSNMEA_RXMSG_GLL,
+    GPSNMEA_RXMSG_RMC,
+    GPSNMEA_RXMSG_GSV,
+    GPSNMEA_RXMSG_GSA,
+    GPSNMEA_RXMSG_VTG,
+    GPSNMEA_RXMSG_ZDA,
+    GPSNEMA_RXMSG_PMTK001
+} GpsNmea_RxMessageType;
 
 typedef enum _GpsNmea_DeviceType
 {
@@ -82,6 +82,8 @@ union GpsNmea_StatusType
 GpsNmea_Errors GpsNmea_init (Uart_DeviceHandle device);
 GpsNmea_Errors GpsNmea_enable (void);
 GpsNmea_Errors GpsNmea_disable (void);
+
+GpsNmea_RxMessageType GpsNmea_getReceiveMessageType (void);
 
 GpsNmea_Errors GpsNmea_addReceiveChar (void);
 GpsNmea_Errors GpsNmea_parseMessage (void);

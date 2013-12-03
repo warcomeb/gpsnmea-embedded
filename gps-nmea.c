@@ -198,26 +198,26 @@ static uint8_t GpsNmea_computeChecksum (const uint8_t* data, uint8_t start, uint
      return checksum;
 }
 
-static GpsNmea_MessageType GpsNmea_getReceiveMessageType (void)
+GpsNmea_RxMessageType GpsNmea_getReceiveMessageType (void)
 {
     if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_RMC) == 0)
-        return GPSNMEA_MSG_RMC;
+        return GPSNMEA_RXMSG_RMC;
     else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GGA) == 0)
-        return GPSNMEA_MSG_GGA;
+        return GPSNMEA_RXMSG_GGA;
     else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GLL) == 0)
-        return GPSNMEA_MSG_GLL;        
+        return GPSNMEA_RXMSG_GLL;        
     else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GSV) == 0)
-        return GPSNMEA_MSG_GSV;
+        return GPSNMEA_RXMSG_GSV;
     else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_GSA) == 0)
-        return GPSNMEA_MSG_GSA;
+        return GPSNMEA_RXMSG_GSA;
     else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_VTG) == 0)
-        return GPSNMEA_MSG_VTG;
+        return GPSNMEA_RXMSG_VTG;
     else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_ZDA) == 0)
-        return GPSNMEA_MSG_ZDA;
+        return GPSNMEA_RXMSG_ZDA;
     else if (stringCompare(GpsNmea_rxBuffer.message[0],GPSNMEA_STRING_PMTK001) == 0)
-        return GPSNEMA_MSG_PMTK001;
+        return GPSNEMA_RXMSG_PMTK001;
     else
-        return GPSNMEA_MSG_EMPTY;
+        return GPSNMEA_RXMSG_ERROR;
 }
 
 /**
@@ -340,7 +340,7 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
     
 //    static uint8_t messageLength = 0;
 
-    static GpsNmea_MessageType messageType = GPSNMEA_MSG_EMPTY;
+    static GpsNmea_RxMessageType messageType = GPSNMEA_RXMSG_ERROR;
     
     /* Reset buffer index indicator */
 //    messageLength = GpsNmea_rxBufferIndex;
@@ -351,7 +351,7 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
         return GPSNMEA_ERROR_CHECKSUM; /* Checksum mismatch */
 
     messageType = GpsNmea_getReceiveMessageType();
-    if (messageType == GPSNMEA_MSG_EMPTY)
+    if (messageType == GPSNMEA_RXMSG_ERROR)
         return GPSNMEA_ERROR_MSG_TYPE;
 
     return GPSNMEA_ERROR_OK;
