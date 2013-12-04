@@ -91,17 +91,23 @@ static union GpsNmea_RxBufferType
     struct
     {
         char command[15];
+        /** UTC time of fix in hhmmss.ddd where hh is hour, mm is minutes, ss is seconds and ddd is decimal part. */
         char utcTime[15];
+        /** Status indicator: A is valid, V is invalid */
         char status[15];
         char latitudeCoordinate[15];
         char latitudeDirection[15];
         char longitudeCoordinate[15];
         char longitudeDirection[15];
+        /** Speed over ground measured in knots that is one nautical mile (1.852 km) per hour. */
         char speed[15];
+        /** This indicates the direction that the device is currently moving in, in azimuth. */
         char heading[15];
+        /** UTC date of fix in ddmmyy where dd is day, mm is months and yy is year. */
         char utcDate[15];
-        char magneticVariation[15];
-        char magneticDirection[15];
+        char magneticVariation[15];   /* Not supported */
+        char magneticDirection[15];   /* Not supported */
+        /** Mode indicator: A is autonomous, N is data not valid */
         char mode[15];
     } rmc;
 
@@ -351,9 +357,6 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
         return GPSNMEA_ERROR_CHECKSUM; /* Checksum mismatch */
 
     messageType = GpsNmea_getReceiveMessageType();
-    if (messageType == GPSNMEA_RXMSG_ERROR)
-        return GPSNMEA_ERROR_MSG_TYPE;
-
     switch (messageType)
     {
     case GPSNMEA_RXMSG_RMC:
@@ -363,6 +366,8 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
             return GPSNMEA_ERROR_MSG_RMC_INVALID;
         }
         break;
+    case GPSNMEA_RXMSG_ERROR:
+        return GPSNMEA_ERROR_MSG_TYPE;
     }
     
     
@@ -392,4 +397,72 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
         return GPSNMEA_ERROR_NOT_COMPLIANT;
     }
 #endif
+}
+
+/**
+ * The time message are in the format hhmmss.dd where
+ * - hh is hours
+ * - mm is minutes
+ * - ss is seconds
+ * - dd is the decimal part of seconds
+ * .
+ */
+static GpsNmea_Errors GpsNmea_parseTime (const char* message, Time_TimeType* result)
+{
+    
+}
+
+/**
+ * The coordinate message are in two format xxmm.dddd or xxxmm.dddd where
+ * - xx or xxx is degrees
+ * - mm is minutes
+ * - dddd is the decimal part of minutes
+ * .
+ * 
+ * @param char* message The message that we need to parse.
+ * @param GpsNmea_CoordinateType* result This variable is used to store the conversion result.
+ * @return Return the status of the operation by an element of @ref GpsNmea_Errors
+ */
+static GpsNmea_Errors GpsNmea_parseCoordinate (char* message, GpsNmea_CoordinateType* result)
+{
+    uint8_t digit;
+    char* dotOnMessage = message+2;
+
+    float minutePart = 0.0;
+    uint8_t isDecimal = 0;
+    float decimalPart = 0.0, decimalDivisor = 1.0;
+    
+    *result = 0;
+    while (*message)
+    {
+        if (*message == GPSNMEA_DECIMAL)
+        {
+            isDecimal = 1;
+            continue;
+        }
+
+        if (xdigit(*message,&digit) == ERRORS_UTILITY_CONVERSION_OK)
+            return GPSNMEA_ERROR_COORD_CONVERSION;
+        
+        if (!isDecimal && (*dotOnMessage != GPSNMEA_DECIMAL))
+        {
+            *result = (10 * (*result)) + digit;
+            dotOnMessage++;
+        }
+        else if (!isDecimal && (*dotOnMessage == GPSNMEA_DECIMAL))
+        {
+            minutePart = (10.0 * minutePart) + digit;
+        }
+        else
+        {
+            decimalPart = (10.0 * decimalPart) + digit;
+            decimalDivisor *= 10.0; 
+        }
+        message++;
+    }
+    
+    minutePart += (decimalPart/decimalDivisor);
+    *result += (minutePart / 60.0);
+    
+    return GPSNMEA_ERROR_OK;
 }

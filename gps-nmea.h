@@ -46,6 +46,10 @@ typedef enum _GpsNmea_Errors
 	GPSNMEA_ERROR_NOT_COMPLIANT,
 	GPSNMEA_ERROR_CHECKSUM,
 	GPSNMEA_ERROR_MSG_TYPE,
+	
+	GPSNMEA_ERROR_MSG_RMC_INVALID,
+	
+	GPSNMEA_ERROR_COORD_CONVERSION,
 } GpsNmea_Errors;
 
 typedef enum _GpsNmea_RxMessageType
@@ -67,6 +71,27 @@ typedef enum _GpsNmea_DeviceType
     GPSNMEA_DEVICE_GLONASS,
     GPSNMEA_DEVICE_GNSS
 } GpsNmea_DeviceType;
+
+typedef float GpsNmea_CoordinateType;
+
+typedef union _GpsNmea_DataType
+{
+    struct
+    {
+        Time_TimeType          utcTime;
+        Time_DateType          utcDate;
+        GpsNmea_CoordinateType longitude;
+        GpsNmea_CoordinateType latitude;
+        float                  speed; /* Speed over ground in km/h */
+        float                  heading;
+    } rmc;
+    
+    struct
+    {
+        Time_TimeType          utcTime;
+        Time_DateType          utcDate;        
+    } zda;
+} GpsNmea_DataType;
 
 union GpsNmea_StatusType
 {
