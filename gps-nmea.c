@@ -354,6 +354,18 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
     if (messageType == GPSNMEA_RXMSG_ERROR)
         return GPSNMEA_ERROR_MSG_TYPE;
 
+    switch (messageType)
+    {
+    case GPSNMEA_RXMSG_RMC:
+        /* Check data status: A is ok, V is not valid */
+        if (GpsNmea_rxBuffer.rmc.status[0] == 'V')
+        {
+            return GPSNMEA_ERROR_MSG_RMC_INVALID;
+        }
+        break;
+    }
+    
+    
     return GPSNMEA_ERROR_OK;
     
 #if 0
