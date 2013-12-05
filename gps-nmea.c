@@ -337,17 +337,103 @@ GpsNmea_Errors GpsNmea_addReceiveChar (void)
 }
 
 /**
+ * The time message are in the format hhmmss.dd where
+ * - hh is hours
+ * - mm is minutes
+ * - ss is seconds
+ * - dd is the decimal part of seconds
+ * .
+ * 
+ * @param char* message The message that we need to convert.
+ * @param Time_TimeType* result The result of the conversion.
+ * @return Return the status of the operation by an element of @ref GpsNmea_Errors
+ */
+static GpsNmea_Errors GpsNmea_parseTime (const char* message, Time_TimeType* result)
+{
+    if (dtu8((uint8_t*)message,&(result->hours),2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+    
+    message += 2;
+    
+    if (dtu8((uint8_t*)message,&(result->minutes),2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+    
+    message += 2;
+
+    if (dtu8((uint8_t*)message,&(result->seconds),2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+    
+    return GPSNMEA_ERROR_OK;
+}
+
+/**
+ * The coordinate message are in two format xxmm.dddd or xxxmm.dddd where
+ * - xx or xxx is degrees
+ * - mm is minutes
+ * - dddd is the decimal part of minutes
+ * .
+ * 
+ * @param char* message The message that we need to parse.
+ * @param GpsNmea_CoordinateType* result This variable is used to store the conversion result.
+ * @return Return the status of the operation by an element of @ref GpsNmea_Errors
+ */
+static GpsNmea_Errors GpsNmea_parseCoordinate (char* message, GpsNmea_CoordinateType* result)
+{
+    uint8_t digit;
+    char* dotOnMessage = message+2;
+
+    float minutePart = 0.0;
+    uint8_t isDecimal = 0;
+    float decimalPart = 0.0, decimalDivisor = 1.0;
+    
+    *result = 0;
+    while (*message)
+    {
+        if (*message == GPSNMEA_DECIMAL)
+        {
+            isDecimal = 1;
+            continue;
+        }
+
+        if (ddigit(*message,&digit) != ERRORS_UTILITY_CONVERSION_OK)
+            return GPSNMEA_ERROR_COORD_CONVERSION;
+        
+        if (!isDecimal && (*dotOnMessage != GPSNMEA_DECIMAL))
+        {
+            *result = (10 * (*result)) + digit;
+            dotOnMessage++;
+        }
+        else if (!isDecimal && (*dotOnMessage == GPSNMEA_DECIMAL))
+        {
+            minutePart = (10.0 * minutePart) + digit;
+        }
+        else
+        {
+            decimalPart = (10.0 * decimalPart) + digit;
+            decimalDivisor *= 10.0; 
+        }
+        message++;
+    }
+    
+    minutePart += (decimalPart/decimalDivisor);
+    *result += (minutePart / 60.0);
+    
+    return GPSNMEA_ERROR_OK;
+}
+
+/**
  * 
  * @return Return the status of the operation by an element of GpsNmea_Errors
  */
-GpsNmea_Errors GpsNmea_parseMessage (void)
+GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_DataType* data)
 {
     static uint8_t rxChecksum = 0;
     
 //    static uint8_t messageLength = 0;
 
     static GpsNmea_RxMessageType messageType = GPSNMEA_RXMSG_ERROR;
-    
+    static GpsNmea_Errors error = GPSNMEA_ERROR_OK;
+
     /* Reset buffer index indicator */
 //    messageLength = GpsNmea_rxBufferIndex;
 //    GpsNmea_rxBufferIndex = 0;
@@ -365,6 +451,22 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
         {
             return GPSNMEA_ERROR_MSG_RMC_INVALID;
         }
+        /* Parse time and save it */
+        GpsNmea_parseTime(GpsNmea_rxBuffer.rmc.utcTime,&(data->rmc.utcTime));
+        /* TODO: Parse date and save it */
+        /* Parse latitude value and direction */
+        error = GpsNmea_parseCoordinate(GpsNmea_rxBuffer.rmc.latitudeCoordinate,&(data->rmc.latitude));
+        if (error != GPSNMEA_ERROR_OK) return error;
+        if (GpsNmea_rxBuffer.rmc.latitudeDirection[0] == 'S') data->rmc.latitude *= -1.0;
+        /* Parse longitude value and direction */
+        error = GpsNmea_parseCoordinate(GpsNmea_rxBuffer.rmc.longitudeCoordinate,&(data->rmc.longitude));
+        if (error != GPSNMEA_ERROR_OK) return error;
+        if (GpsNmea_rxBuffer.rmc.longitudeDirection[0] == 'W') data->rmc.longitude *= -1.0;
+        /* Parse speed and convert from knots to km/h */
+        strtf(GpsNmea_rxBuffer.rmc.speed,&(data->rmc.speed));
+        if (data->rmc.speed != 0.0) data->rmc.speed /= 1.852;
+        /* Parse heading */
+        strtf(GpsNmea_rxBuffer.rmc.heading,&(data->rmc.heading));
         break;
     case GPSNMEA_RXMSG_ERROR:
         return GPSNMEA_ERROR_MSG_TYPE;
@@ -397,72 +499,4 @@ GpsNmea_Errors GpsNmea_parseMessage (void)
         return GPSNMEA_ERROR_NOT_COMPLIANT;
     }
 #endif
-}
-
-/**
- * The time message are in the format hhmmss.dd where
- * - hh is hours
- * - mm is minutes
- * - ss is seconds
- * - dd is the decimal part of seconds
- * .
- */
-static GpsNmea_Errors GpsNmea_parseTime (const char* message, Time_TimeType* result)
-{
-    
-}
-
-/**
- * The coordinate message are in two format xxmm.dddd or xxxmm.dddd where
- * - xx or xxx is degrees
- * - mm is minutes
- * - dddd is the decimal part of minutes
- * .
- * 
- * @param char* message The message that we need to parse.
- * @param GpsNmea_CoordinateType* result This variable is used to store the conversion result.
- * @return Return the status of the operation by an element of @ref GpsNmea_Errors
- */
-static GpsNmea_Errors GpsNmea_parseCoordinate (char* message, GpsNmea_CoordinateType* result)
-{
-    uint8_t digit;
-    char* dotOnMessage = message+2;
-
-    float minutePart = 0.0;
-    uint8_t isDecimal = 0;
-    float decimalPart = 0.0, decimalDivisor = 1.0;
-    
-    *result = 0;
-    while (*message)
-    {
-        if (*message == GPSNMEA_DECIMAL)
-        {
-            isDecimal = 1;
-            continue;
-        }
-
-        if (xdigit(*message,&digit) == ERRORS_UTILITY_CONVERSION_OK)
-            return GPSNMEA_ERROR_COORD_CONVERSION;
-        
-        if (!isDecimal && (*dotOnMessage != GPSNMEA_DECIMAL))
-        {
-            *result = (10 * (*result)) + digit;
-            dotOnMessage++;
-        }
-        else if (!isDecimal && (*dotOnMessage == GPSNMEA_DECIMAL))
-        {
-            minutePart = (10.0 * minutePart) + digit;
-        }
-        else
-        {
-            decimalPart = (10.0 * decimalPart) + digit;
-            decimalDivisor *= 10.0; 
-        }
-        message++;
-    }
-    
-    minutePart += (decimalPart/decimalDivisor);
-    *result += (minutePart / 60.0);
-    
-    return GPSNMEA_ERROR_OK;
 }
