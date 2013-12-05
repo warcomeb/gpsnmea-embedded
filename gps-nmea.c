@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (C) 2013-21014 Marco Giammarini <http://www.warcomeb.it>
+ * Copyright (C) 2013 Marco Giammarini <http://www.warcomeb.it>
  * 
  * Author(s):
  *  Marco Giammarini <m.giammarini@warcomeb.it>
@@ -51,14 +51,11 @@
 #define GPSNMEA_STRING_PMTK001             "PMTK001"
 
 #define GPSNMEA_MSG_MAX_LENGTH             80
-//
-//#define GPSNMEA_RX_BUFFER_MASK             0x7F
-//#define GPSNMEA_TX_BUFFER_MASK             0x7F
-//
-//static uint8_t GpsNmea_rxBufferIndex;
-//static uint8_t GpsNmea_txBufferIndex;
 
-//static uint8_t GpsNmea_rxBuffer[GPSNMEA_RX_BUFFER_MASK + 1];
+#define GPSNMEA_TX_BUFFER_MASK             0x7F
+
+static uint8_t GpsNmea_txBuffer[GPSNMEA_TX_BUFFER_MASK + 1];
+static uint8_t GpsNmea_txBufferIndex;
 
 static Uart_DeviceHandle GpsNmea_device;
 static uint8_t GpsNmea_active = GPSNMEA_NO_ACTIVE;
@@ -198,7 +195,7 @@ static uint8_t GpsNmea_computeChecksum (const uint8_t* data, uint8_t start, uint
 
      for (i = start; i < length; ++i)
      {
-         checksum = checksum ^ (*data);
+         checksum ^= (*data);
          data++;
      }
 
@@ -335,6 +332,15 @@ GpsNmea_Errors GpsNmea_addReceiveChar (void)
 #endif
     
     return GPSNMEA_ERROR_OK;
+}
+
+static void GpsNmea_sendMessage (void)
+{
+    uint8_t i;
+    for (i = 0; i < GpsNmea_txBufferIndex; ++i)
+    {
+        Uart_putChar(GpsNmea_device,GpsNmea_txBuffer[i]);
+    }
 }
 
 /**
@@ -486,7 +492,7 @@ static GpsNmea_Errors GpsNmea_parseCoordinate (const char* message, GpsNmea_Coor
  * 
  * @return Return the status of the operation by an element of GpsNmea_Errors
  */
-GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_DataType* data)
+GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data)
 {
     static uint8_t rxChecksum = 0;
     
@@ -571,8 +577,67 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_DataType* data)
 #endif
 }
 
-GpsNmea_Errors GpsNmea_sendMessage ()
+GpsNmea_Errors GpsNmea_sendSetNmeaOutput (uint8_t gllInterval, uint8_t rmcInterval,
+                                          uint8_t vtgInterval, uint8_t ggaInterval,
+                                          uint8_t gsaInterval, uint8_t gsvInterval,
+                                          uint8_t zdaInterval, uint8_t reset)
 {
+    uint8_t i;
+    uint8_t checksum;
+
+    GpsNmea_txBuffer[0] = GPSNMEA_START;
+    GpsNmea_txBuffer[1] = 'P';
+    GpsNmea_txBuffer[2] = 'M';
+    GpsNmea_txBuffer[3] = 'T';
+    GpsNmea_txBuffer[4] = 'K';
+    GpsNmea_txBuffer[5] = '3';
+    GpsNmea_txBuffer[6] = '1';
+    GpsNmea_txBuffer[7] = '4';
+    GpsNmea_txBuffer[8] = GPSNMEA_SEPARATOR;
+    GpsNmea_txBufferIndex = 9;
+
+    /* Send reset message for output messages */
+    if (reset > 0)
+    {
+        /* jump the function GpsNmea_sendMessage */
+        Uart_sendString(GpsNmea_device, "$PMTK314,-1*04\r\n");
+    }
+    else
+    {
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = (gllInterval >= 0 && gllInterval <6) ? hexDigits[gllInterval] : '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = (rmcInterval >= 0 && rmcInterval <6) ? hexDigits[rmcInterval] : '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = (vtgInterval >= 0 && vtgInterval <6) ? hexDigits[vtgInterval] : '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = (ggaInterval >= 0 && ggaInterval <6) ? hexDigits[ggaInterval] : '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = (gsaInterval >= 0 && gsaInterval <6) ? hexDigits[gsaInterval] : '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = (gsvInterval >= 0 && gsvInterval <6) ? hexDigits[gsvInterval] : '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+        
+        for (i = 0; i < 11; i++) /* Not supported fields */
+        {
+            GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = '0';
+            GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+        }
+        
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = (zdaInterval >= 0 && zdaInterval <6) ? hexDigits[zdaInterval] : '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_SEPARATOR;
+
+        /* Not supported field */
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = '0';
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_STOP;
+        
+        checksum = GpsNmea_computeChecksum(&GpsNmea_txBuffer[1],1,GpsNmea_txBufferIndex - 1);
+        u8tx(&GpsNmea_txBuffer[GpsNmea_txBufferIndex],checksum);
+        GpsNmea_txBufferIndex += 2;
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_END1;
+        GpsNmea_txBuffer[GpsNmea_txBufferIndex++] = GPSNMEA_END2;
+        
+        GpsNmea_sendMessage();
+    }
 
     return GPSNMEA_ERROR_OK;
 }

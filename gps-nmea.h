@@ -75,7 +75,7 @@ typedef enum _GpsNmea_DeviceType
 
 typedef float GpsNmea_CoordinateType;
 
-typedef union _GpsNmea_DataType
+typedef union _GpsNmea_RxDataType
 {
     struct
     {
@@ -92,7 +92,7 @@ typedef union _GpsNmea_DataType
         Time_TimeType          utcTime;
         Time_DateType          utcDate;        
     } zda;
-} GpsNmea_DataType;
+} GpsNmea_RxDataType;
 
 union GpsNmea_StatusType
 {
@@ -112,6 +112,10 @@ GpsNmea_Errors GpsNmea_disable (void);
 GpsNmea_RxMessageType GpsNmea_getReceiveMessageType (void);
 
 GpsNmea_Errors GpsNmea_addReceiveChar (void);
-GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_DataType* data);
+GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data);
 
+GpsNmea_Errors GpsNmea_sendSetNmeaOutput (uint8_t gllInterval, uint8_t rmcInterval,
+                                          uint8_t vtgInterval, uint8_t ggaInterval,
+                                          uint8_t gsaInterval, uint8_t gsvInterval,
+                                          uint8_t zdaInterval, uint8_t reset);
 #endif /* __GPS_NMEA_H */
