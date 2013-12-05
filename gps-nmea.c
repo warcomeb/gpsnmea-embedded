@@ -114,12 +114,13 @@ static union GpsNmea_RxBufferType
     struct
     {
         char command[15];
+        /** UTC time of fix in hhmmss.ddd where hh is hour, mm is minutes, ss is seconds and ddd is decimal part. */
         char utcTime[15];
         char utcDay[15];
         char utcMonth[15];
         char utcYear[15];
-        char localHour[15];
-        char localMinute[15];
+        char localHour[15];   /* Not supported */
+        char localMinute[15]; /* Not supported */
     } zda;
 
     struct
@@ -367,6 +368,66 @@ static GpsNmea_Errors GpsNmea_parseTime (const char* message, Time_TimeType* res
 }
 
 /**
+ * The date message are in the format ddmmyy where
+ * - dd is day
+ * - mm is month
+ * - yy is year
+ * .
+ * 
+ * @param char* message The message that we need to convert.
+ * @param Time_DateType* result The result of the conversion.
+ * @return Return the status of the operation by an element of @ref GpsNmea_Errors
+ */
+static GpsNmea_Errors GpsNmea_parseDate (const char* message, Time_DateType* result)
+{
+    uint8_t year;
+    
+    if (dtu8((uint8_t*)message,&(result->day),2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+    
+    message += 2;
+    
+    if (dtu8((uint8_t*)message,&(result->month),2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+    
+    message += 2;
+
+    if (dtu8((uint8_t*)message,&year,2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+    result->year = 2000 + year;
+    
+    return GPSNMEA_ERROR_OK;
+}
+
+/**
+ * The multiple message for a date are in the format <dd> <mm> <yyyy> where 
+ * - dd is day
+ * - mm is month
+ * - yyyy is year
+ * .
+ * 
+ * @param char* messageDay The day message that we need to convert.
+ * @param char* messageMonth The month message that we need to convert.
+ * @param char* messageYear The year message that we need to convert.
+ * @param Time_DateType* result The result of the conversion.
+ * @return Return the status of the operation by an element of @ref GpsNmea_Errors
+ */
+static GpsNmea_Errors GpsNmea_parseMultipleFieldDate (const char* messageDay, const char* messageMonth,
+                const char* messageYear, Time_DateType* result)
+{
+    if (dtu8((uint8_t*)messageDay,&(result->day),2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+
+    if (dtu8((uint8_t*)messageMonth,&(result->month),2) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+
+    if (dtu16((uint8_t*)messageYear,&(result->year),4) != ERRORS_UTILITY_CONVERSION_OK)
+        return GPSNMEA_ERROR_TIME_CONVERSION;
+
+    return GPSNMEA_ERROR_OK;
+}
+
+/**
  * The coordinate message are in two format xxmm.dddd or xxxmm.dddd where
  * - xx or xxx is degrees
  * - mm is minutes
@@ -377,10 +438,10 @@ static GpsNmea_Errors GpsNmea_parseTime (const char* message, Time_TimeType* res
  * @param GpsNmea_CoordinateType* result This variable is used to store the conversion result.
  * @return Return the status of the operation by an element of @ref GpsNmea_Errors
  */
-static GpsNmea_Errors GpsNmea_parseCoordinate (char* message, GpsNmea_CoordinateType* result)
+static GpsNmea_Errors GpsNmea_parseCoordinate (const char* message, GpsNmea_CoordinateType* result)
 {
     uint8_t digit;
-    char* dotOnMessage = message+2;
+    const char* dotOnMessage = message+2;
 
     float minutePart = 0.0;
     uint8_t isDecimal = 0;
@@ -453,7 +514,8 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_DataType* data)
         }
         /* Parse time and save it */
         GpsNmea_parseTime(GpsNmea_rxBuffer.rmc.utcTime,&(data->rmc.utcTime));
-        /* TODO: Parse date and save it */
+        /* Parse date and save it */
+        GpsNmea_parseDate(GpsNmea_rxBuffer.rmc.utcDate,&(data->rmc.utcDate));
         /* Parse latitude value and direction */
         error = GpsNmea_parseCoordinate(GpsNmea_rxBuffer.rmc.latitudeCoordinate,&(data->rmc.latitude));
         if (error != GPSNMEA_ERROR_OK) return error;
@@ -463,18 +525,26 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_DataType* data)
         if (error != GPSNMEA_ERROR_OK) return error;
         if (GpsNmea_rxBuffer.rmc.longitudeDirection[0] == 'W') data->rmc.longitude *= -1.0;
         /* Parse speed and convert from knots to km/h */
-        strtf(GpsNmea_rxBuffer.rmc.speed,&(data->rmc.speed));
+        strtf((uint8_t*)GpsNmea_rxBuffer.rmc.speed,&(data->rmc.speed));
         if (data->rmc.speed != 0.0) data->rmc.speed /= 1.852;
         /* Parse heading */
-        strtf(GpsNmea_rxBuffer.rmc.heading,&(data->rmc.heading));
+        strtf((uint8_t*)GpsNmea_rxBuffer.rmc.heading,&(data->rmc.heading));
+        break;
+    case GPSNMEA_RXMSG_ZDA:
+        /* Parse time and save it */
+        error = GpsNmea_parseTime(GpsNmea_rxBuffer.zda.utcTime,&(data->zda.utcTime));
+        if (error != GPSNMEA_ERROR_OK) return error;
+        /* Parse date and save it */
+        error = GpsNmea_parseMultipleFieldDate(GpsNmea_rxBuffer.zda.utcDay, GpsNmea_rxBuffer.zda.utcMonth,
+                         GpsNmea_rxBuffer.zda.utcYear, &(data->zda.utcDate));
+        if (error != GPSNMEA_ERROR_OK) return error;
         break;
     case GPSNMEA_RXMSG_ERROR:
         return GPSNMEA_ERROR_MSG_TYPE;
     }
-    
-    
+
     return GPSNMEA_ERROR_OK;
-    
+
 #if 0
     /* Control start and end chars of message */
     if ((GpsNmea_rxBuffer[0] == GPSNMEA_START) && 
@@ -499,4 +569,10 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_DataType* data)
         return GPSNMEA_ERROR_NOT_COMPLIANT;
     }
 #endif
+}
+
+GpsNmea_Errors GpsNmea_sendMessage ()
+{
+
+    return GPSNMEA_ERROR_OK;
 }
