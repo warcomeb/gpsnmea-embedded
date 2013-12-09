@@ -459,6 +459,7 @@ static GpsNmea_Errors GpsNmea_parseCoordinate (const char* message, GpsNmea_Coor
         if (*message == GPSNMEA_DECIMAL)
         {
             isDecimal = 1;
+            message++;
             continue;
         }
 
@@ -492,13 +493,13 @@ static GpsNmea_Errors GpsNmea_parseCoordinate (const char* message, GpsNmea_Coor
  * 
  * @return Return the status of the operation by an element of GpsNmea_Errors
  */
-GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data)
+GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data, GpsNmea_RxMessageType* msgType)
 {
     static uint8_t rxChecksum = 0;
     
 //    static uint8_t messageLength = 0;
 
-    static GpsNmea_RxMessageType messageType = GPSNMEA_RXMSG_ERROR;
+//    static GpsNmea_RxMessageType messageType = GPSNMEA_RXMSG_ERROR;
     static GpsNmea_Errors error = GPSNMEA_ERROR_OK;
 
     /* Reset buffer index indicator */
@@ -509,8 +510,8 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data)
     if (GpsNmea_readChecksum != rxChecksum)
         return GPSNMEA_ERROR_CHECKSUM; /* Checksum mismatch */
 
-    messageType = GpsNmea_getReceiveMessageType();
-    switch (messageType)
+    *msgType = GpsNmea_getReceiveMessageType();
+    switch (*msgType)
     {
     case GPSNMEA_RXMSG_RMC:
         /* Check data status: A is ok, V is not valid */
@@ -535,6 +536,7 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data)
         if (data->rmc.speed != 0.0) data->rmc.speed /= 1.852;
         /* Parse heading */
         strtf((uint8_t*)GpsNmea_rxBuffer.rmc.heading,&(data->rmc.heading));
+        return GPSNMEA_ERROR_MSG_RMC_VALID;
         break;
     case GPSNMEA_RXMSG_ZDA:
         /* Parse time and save it */
@@ -577,6 +579,10 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data)
 #endif
 }
 
+/* FIXME: This function doesn't work, gps module reply with "invalid command" */
+/**
+ * 
+ */
 GpsNmea_Errors GpsNmea_sendSetNmeaOutput (uint8_t gllInterval, uint8_t rmcInterval,
                                           uint8_t vtgInterval, uint8_t ggaInterval,
                                           uint8_t gsaInterval, uint8_t gsvInterval,

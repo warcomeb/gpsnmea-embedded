@@ -48,6 +48,7 @@ typedef enum _GpsNmea_Errors
 	GPSNMEA_ERROR_MSG_TYPE,
 	
 	GPSNMEA_ERROR_MSG_RMC_INVALID,
+	GPSNMEA_ERROR_MSG_RMC_VALID,
 	
 	GPSNMEA_ERROR_COORD_CONVERSION,
 	GPSNMEA_ERROR_TIME_CONVERSION,
@@ -112,7 +113,7 @@ GpsNmea_Errors GpsNmea_disable (void);
 GpsNmea_RxMessageType GpsNmea_getReceiveMessageType (void);
 
 GpsNmea_Errors GpsNmea_addReceiveChar (void);
-GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data);
+GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data, GpsNmea_RxMessageType* msgType);
 
 GpsNmea_Errors GpsNmea_sendSetNmeaOutput (uint8_t gllInterval, uint8_t rmcInterval,
                                           uint8_t vtgInterval, uint8_t ggaInterval,
