@@ -579,6 +579,29 @@ GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data, GpsNmea_RxMessage
 #endif
 }
 
+/**
+ * 
+ * @return Return the status of the operation by an element of GpsNmea_Errors
+ */
+GpsNmea_Errors GpsNmea_isValidRmcMessage (void)
+{
+    static uint8_t rxChecksum = 0;
+
+    xtu8(GpsNmea_rxChecksumBuffer,&rxChecksum,2);
+    if (GpsNmea_readChecksum != rxChecksum)
+        return GPSNMEA_ERROR_CHECKSUM; /* Checksum mismatch */
+
+    /* Check data status: A is ok, V is not valid */
+    if (GpsNmea_rxBuffer.rmc.status[0] == 'V')
+    {
+        return GPSNMEA_ERROR_MSG_RMC_INVALID;
+    }
+    else
+    {
+        return GPSNMEA_ERROR_MSG_RMC_VALID;
+    }
+}
+
 /* FIXME: This function doesn't work, gps module reply with "invalid command" */
 /**
  * 

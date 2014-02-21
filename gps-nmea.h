@@ -115,6 +115,8 @@ GpsNmea_RxMessageType GpsNmea_getReceiveMessageType (void);
 GpsNmea_Errors GpsNmea_addReceiveChar (void);
 GpsNmea_Errors GpsNmea_parseMessage (GpsNmea_RxDataType* data, GpsNmea_RxMessageType* msgType);
 
+GpsNmea_Errors GpsNmea_isValidRmcMessage (void);
+
 GpsNmea_Errors GpsNmea_sendSetNmeaOutput (uint8_t gllInterval, uint8_t rmcInterval,
                                           uint8_t vtgInterval, uint8_t ggaInterval,
                                           uint8_t gsaInterval, uint8_t gsvInterval,
